@@ -1,59 +1,185 @@
-const express = require("express");
+process.stdin.setEncoding("utf8");
+const path = require("path");
+const express = require("express"); /* Accessing express module */
 const app = express();
-const port = process.env.PORT || 3001;
+const fs = require('fs');
+const statusCode = 200;
+const portNumber = 4000;
 
-app.get("/", (req, res) => res.type('html').send(html));
+app.listen(portNumber);
+console.log(`Web server started and running at http://localhost:${portNumber}`);
 
-app.listen(port, () => console.log(`Example app listening on port ${port}!`));
+const prompt = "Stop to shutdown the server: ";
+
+process.stdout.write(prompt);
+process.stdin.on("readable", function () {
+    let dataInput = process.stdin.read();
+    if (dataInput !== null) {
+      let command = dataInput.trim();
+      if (command === "stop") {
+        process.exit(0);
+      }
+      else {
+        process.stdout.write("Invalid command: " + command + "\n");
+      }
+      process.stdout.write(prompt);
+      process.stdin.resume();
+    }
+});
 
 
-const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Hello from Render!</title>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <script>
-      setTimeout(() => {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-          disableForReducedMotion: true
+require("dotenv").config({ path: path.resolve(__dirname, 'credentialsDontPost/.env') }) 
+
+const userName = process.env.MONGO_DB_USERNAME;
+const password = process.env.MONGO_DB_PASSWORD;
+
+ /* Our database and collection */
+ const databaseAndCollection = {db: "CMSC335_DB", collection:"final"};
+
+ const { MongoClient, ServerApiVersion } = require('mongodb');
+
+ const uri = `mongodb+srv://${userName}:${password}@cluster0.hcngmbw.mongodb.net/?retryWrites=true&w=majority`;
+ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
+
+const { response } = require("express");
+app.set("views", path.resolve(__dirname, "templates"));
+app.set("view engine", "ejs");
+
+app.get("/", (request, response) => {
+    response.render("index");
+});
+
+app.get("/add", (request, response) => {
+    response.render("add");
+});
+
+const bodyParser = require("body-parser"); /* To handle post parameters */
+app.use(bodyParser.urlencoded({extended:false}));
+
+app.post("/processAdd", (request, response) => {
+    let {title, hour, minute, stars, review} = request.body;
+    
+    
+    
+    let movie = {title, hour, minute, stars, review};
+    insertMovie(movie);
+
+    response.render("processAdd", movie)
+});
+
+app.get("/review", (request, response) => {
+    response.render("review");
+});
+
+app.post("/processReview", async (request, response) => {
+    let {title} = request.body;
+    let thisTitle = title;
+
+
+    try {
+        await client.connect();
+
+        let filter = {title: thisTitle};
+        const result = await client.db(databaseAndCollection.db)
+                        .collection(databaseAndCollection.collection)
+                        .findOne(filter);
+              
+
+        if (result) {
+            let title = result.title;
+            let hour = result.hour;
+            let minute = result.minute;
+            let stars = result.stars;
+            let review = result.review;
+            await response.render("processAdd", {title, hour, minute, stars, review});
+        } else {
+            let title = "NONE";
+            let hour = "NONE";
+            let minute = "NONE"
+            let stars = "NONE";
+            let review = "NONE";
+            await response.render("processAdd", {title, hour, minute, stars, review});
+        }  
+        
+        
+
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.close();
+    }
+});
+
+app.get("/runtime", (request, response) => {
+    response.render("runtime");
+});
+
+app.get("/remove", (request, response) => {
+    response.render("remove.ejs");
+});
+
+app.post("/processRuntime", async (request, response) => {
+    let {hour, minute} = request.body;
+
+    // let time = hour.minute;
+
+    let runtime= hour+" hours, "+minute+" minutes";
+
+    try {
+        await client.connect();
+
+        let filter = {hour : { $lt: hour}};
+
+        const cursor = client.db(databaseAndCollection.db)
+            .collection(databaseAndCollection.collection)
+            .find(filter);
+        const result = await cursor.toArray();
+
+        let table = "<table border='1'> <tr> <th>Title</th> <th>Hours</th> <th>Minutes</th></tr>"
+
+        result.forEach(movie => {
+            table+="<tr><td>"+movie.title+"</td><td>"+movie.hour+"</td><td>"+movie.minute+"</td></tr>"
         });
-      }, 500);
-    </script>
-    <style>
-      @import url("https://p.typekit.net/p.css?s=1&k=vnd5zic&ht=tk&f=39475.39476.39477.39478.39479.39480.39481.39482&a=18673890&app=typekit&e=css");
-      @font-face {
-        font-family: "neo-sans";
-        src: url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/l?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("woff2"), url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/d?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("woff"), url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/a?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("opentype");
-        font-style: normal;
-        font-weight: 700;
-      }
-      html {
-        font-family: neo-sans;
-        font-weight: 700;
-        font-size: calc(62rem / 16);
-      }
-      body {
-        background: white;
-      }
-      section {
-        border-radius: 1em;
-        padding: 1em;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        margin-right: -50%;
-        transform: translate(-50%, -50%);
-      }
-    </style>
-  </head>
-  <body>
-    <section>
-      Hello from Render!
-    </section>
-  </body>
-</html>
-`
+        table+="<br></table>";
+
+        await response.render("processRuntime", {table, hour});
+
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.close();
+    }
+});
+
+app.post("/processRemove", async (request, response) => {
+
+    try {
+        await client.connect();
+        
+        const result = await client.db(databaseAndCollection.db)
+        .collection(databaseAndCollection.collection)
+        .deleteMany({});
+        let size = result.deletedCount;
+
+        await response.render("processRemove", {size});
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.close();
+    }
+
+});
+
+async function insertMovie(newMovie) {
+    try {
+        await client.connect();
+
+        await client.db(databaseAndCollection.db).collection(databaseAndCollection.collection).insertOne(newMovie);
+
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.close();
+    }
+    
+}
